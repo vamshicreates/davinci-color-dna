@@ -113,3 +113,28 @@ After `match-reference` completes:
 1. **Always Run Live in the Foreground**: Always bring DaVinci Resolve to the front and switch to the `color` page (`resolve.OpenPage("color")`) before applying any grade so the user watches the Color Viewer update live.
 2. **Never Destroy Existing Grades**: Always create a new Grade Version (`AddVersion`) before modifying a clip's CDL or LUT.
 3. **Always Verify Visually**: Always inspect `after_grade.png` and `comparison_before_ref_after.png` via `view_file` to verify the grade matches the reference image's mood, contrast, and palette.
+
+---
+
+## Embedded Laya Decision Gate (`NandhaKishorM/laya`) — Call Laya ONLY When Necessary
+
+This skill embeds the **[Laya Non-Autoregressive Decision Model (`https://github.com/NandhaKishorM/laya`)](https://github.com/NandhaKishorM/laya)** inside [`scripts/laya_decision_gate.py`](scripts/laya_decision_gate.py) (`from laya import Router`).
+
+### Strict Execution Policy: When to Call Laya vs. Manual Execution
+
+1. **BASIC / EXPLICIT TASKS → DO NOT CALL LAYA (Execute Directly & Manually)**:
+   - If the user gives a clear, direct, or single-step command (for example: *"set saturation to 1.15 on clip 0"*, *"copy grade from clip 0 to clip 1,2"*, *"list clips on track 1"*, *"set slope to '1.05 1.0 0.95'"*), **DO NOT call Laya**.
+   - Execute the step directly using the skill's native CLI/MCP tools to keep execution instant and zero-overhead.
+2. **COMPLEX / AMBIGUOUS MULTI-BRANCH TASKS → CALL LAYA (`laya_decision_gate.py`)**:
+   - Call Laya **only when** a genuine typed decision (`choice`, `score`, `noul`) across multiple creative lanes or ambiguous requirements is needed (for example: *Decide between Primary CDL-only vs. Hybrid CDL + 33x33x33 Split-Tone 3D LUT and skin-tone protection when matching a stylized reference frame across diverse shots*; *Arbitrate look intensity and shadow/highlight roll-off preservation for an ambiguous creative grading brief*).
+   - Run the Laya Decision Gate:
+     ```bash
+     python3 scripts/laya_decision_gate.py --state "<user_brief_or_complex_state>"
+     ```
+   - `laya_decision_gate.py` automatically runs `should_call_laya()` first:
+     - If the task is basic, it immediately returns `"laya_called": false, "execution_mode": "direct_manual_execution"` without loading neural weights.
+     - If the task is genuinely complex, it invokes `laya.Router().predict(...)` in a single forward pass (~33ms) with calibrated confidence gating (`min_confidence=0.55`) and neutral `noul` labels (`{"true": "A", "false": "B"}`).
+   - To install the `laya` neural weights package (`pip install laya`) on a machine:
+     ```bash
+     python3 scripts/laya_decision_gate.py --install
+     ```
